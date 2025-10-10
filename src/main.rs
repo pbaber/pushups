@@ -1,12 +1,15 @@
 use chrono::{self, Local};
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 
 fn main() {
-    make_database();
+    if let Err(e) = make_database() {
+        eprintln!("Failed to initialize database: {e}");
+        std::process::exit(1);
+    }
 }
 
 struct PushupEntry {
-    reps: u16,
+    reps: u32,
     timestamp: chrono::DateTime<Local>,
 }
 
@@ -26,6 +29,17 @@ fn make_database() -> Result<(), rusqlite::Error> {
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pushups_timestamp ON pushups(timestamp)",
         [],
+    )?;
+
+    Ok(())
+}
+
+fn add_pushups(conn: &Connection, reps: u32) -> Result<(), rusqlite::Error> {
+    let now = Local::now();
+
+    conn.execute(
+        "INSERT INTO pushups (reps, timestamp, notes) VALUES (?1, ?2, ?3)",
+        params![reps, now.to_rfc3339(), None::<String>],
     )?;
 
     Ok(())
