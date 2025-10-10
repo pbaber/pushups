@@ -1,11 +1,24 @@
 use chrono::{self, Local};
+use clap::Parser;
 use rusqlite::{Connection, params};
 
-fn main() {
-    if let Err(e) = make_database() {
-        eprintln!("Failed to initialize database: {e}");
-        std::process::exit(1);
-    }
+#[derive(Parser)]
+#[command(name = "pushups")]
+#[command(about = "Track your pushups", long_about = None)]
+struct Cli {
+    reps: u32,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    make_database()?;
+    let conn = Connection::open("./pushups.db")?;
+
+    add_pushups(&conn, cli.reps)?;
+    println!("Added {} pushups", cli.reps);
+
+    Ok(())
 }
 
 struct PushupEntry {
