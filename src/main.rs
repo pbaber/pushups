@@ -1,4 +1,4 @@
-use chrono::{self, Local, TimeZone};
+use chrono::{self, Datelike, Local, NaiveDateTime, TimeZone};
 use clap::Parser;
 use rusqlite::{Connection, params};
 
@@ -11,6 +11,7 @@ enum Cli {
         reps: u32,
     },
     Today,
+    Week,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +28,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Cli::Today => {
             let todays_pushups = todays_pushups(&conn)?;
             println!("We've done {todays_pushups} pushups today");
+        }
+        Cli::Week => {
+            let weeks_pushups = weeks_pushups(&conn)?;
+            println!("We've done {weeks_pushups} pushups this week");
         }
     }
 
@@ -70,11 +75,12 @@ fn add_pushups(conn: &Connection, reps: u32) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-fn days_pushups(conn: &Connection, time: chrono::DateTime<Local>) -> Result<u32, rusqlite::Error> {
-    let start = time.date_naive().and_hms_opt(0, 0, 0).unwrap();
+fn pushups_in_timeperiod(
+    conn: &Connection,
+    start: NaiveDateTime,
+    end: NaiveDateTime,
+) -> Result<u32, rusqlite::Error> {
     let start_local = Local.from_local_datetime(&start).unwrap();
-
-    let end = start + chrono::Duration::days(1);
     let end_local = Local.from_local_datetime(&end).unwrap();
 
     let total: Option<i64> = conn.query_row(
@@ -87,5 +93,22 @@ fn days_pushups(conn: &Connection, time: chrono::DateTime<Local>) -> Result<u32,
 }
 
 fn todays_pushups(conn: &Connection) -> Result<u32, rusqlite::Error> {
-    days_pushups(conn, Local::now())
+    let start = Local::now().date_naive().and_hms_opt(0, 0, 0).unwrap();
+    let end = start + chrono::Duration::days(1);
+    pushups_in_timeperiod(conn, start, end)
+}
+
+fn weeks_pushups(conn: &Connection) -> Result<u32, rusqlite::Error> {
+    let now = Local::now();
+    let current_date = now.date_naive();
+
+    // Get days since Monday (0 = Monday, 1 = Tuesday, ...)
+    let days_since_monday = current_date.weekday().num_days_from_monday();
+
+    let monday = current_date - chrono::Duration::days(days_since_monday as i64);
+    let start = monday.and_hms_opt(0, 0, 0).unwrap();
+
+    let end = start + chrono::Duration::days(7);
+
+    pushups_in_timeperiod(conn, start, end)
 }
